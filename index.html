@@ -666,7 +666,7 @@ D.sellers.forEach(s => {
   s.ritmo = restam > 0 ? Math.ceil(s.faltaMeta / restam) : s.faltaMeta;
   s.ativo = s.meta > 0 || s.total > 0;
   // monitoria: desligados, afastados/licença, assistentes e quem está fora do Desdobramento não são monitorados
-  s.monitorado = !(s.desligado || s.assistente || /DESLIG|AFAST|LICEN/i.test(s.quart?.status || '') || /DESLIG|AFAST|LICEN|LIC |F[ÉE]RIAS/i.test(s.situacao || ''));
+  s.monitorado = !(s.desligado || s.assistente || /DESLIG|AFAST|LICEN/i.test(s.quart?.status || '') || /DESLIG|AFAST|LICEN|LIC |F[ÉE]RIAS/i.test(s.situacao || '')) || !!QM_FORA[s.key];  // 27/11: quem está no QM_FORA continua com as monitorias já feitas (meta 0)
   s.fbExtra = s.fbExtra || [];
   if (!s.monitorado) { s.moni = []; s.fbExtra = []; }
 });
@@ -1835,7 +1835,9 @@ const qmQSem = (s, i) => { const t = QM_QSEM[s.team]; const m = t && t[i + 1]; r
 // 24/11: retorno de férias/afastamento — semanas que terminaram antes do retorno não têm meta; a semana do retorno entra com a meta integral
 const QM_RETORNO = {"JAQUELINE SILVA": "23/11/2026", "MARIANA FELIX": "23/11/2026"};
 const qmAntesRetorno = (s, w) => { const r = QM_RETORNO[s.key]; if (!r) return false; const [d, m, a] = r.split('/').map(Number); return qmFimSem(w) < new Date(a, m - 1, d); };
-function qmMetaSemInt(s, w) { if (QM_FORA[s.key]) return 0; const i = qmSemMes().indexOf(w); if (i < 0) return 0; if (qmAntesRetorno(s, w)) return 0; const q = qmQSem(s, i) || qmQ(s);  // semana fora do mês (ex.: 30/11)
+function qmMetaSemInt(s, w) { if (QM_FORA[s.key]) return 0; const i = qmSemMes().indexOf(w); if (i < 0) return 0; if (qmAntesRetorno(s, w)) return 0;
+  { const T = QM_QSEM[s.team]; if (T && T[i + 1] && !s.quart?.q && !Object.values(T).some(m => m[qmNormNome(s.nome)])) return 0; }  /* 27/11: semana com quartil semanal da equipe: quem não estava em nenhum arquivo semanal e não tem quartil não tem meta */
+  const q = qmQSem(s, i) || qmQ(s);  // semana fora do mês (ex.: 30/11)
   return q === 'Q1' ? (i === 0 || i === 2 ? 1 : 0) : Math.round(QM_FREQ[q] * qmFator(w, false)); }
 // ateD1: parte da meta inteira da semana já vencida até D-1 (só para o "esperado até D-1"; na tela sai arredondado)
 const qmMetaSem = (s, w, ateD1) => { const m = qmMetaSemInt(s, w); if (!ateD1) return m; const f = qmFator(w, false); return f ? m * qmFator(w, true) / f : 0; };
